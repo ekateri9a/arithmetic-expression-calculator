@@ -7,7 +7,6 @@ import (
 	"arithmetic-expression-calculator/internal/utils"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -24,10 +23,10 @@ func Calculate(cl chan bool, tasks chan entities.Task, results chan TaskResult, 
 	for {
 		select {
 		case <-cl:
-			logger.Info("Close calculate goroutines")
+			logger.Info("close calculate goroutines")
 			return
 		case task := <-tasks:
-			fmt.Println("Получена задача:", task)
+			logger.Info("new task:", task)
 			result := TaskResult{}
 			result.Id = task.Id
 			var t time.Duration
@@ -102,7 +101,7 @@ func Run() {
 				}
 			// POST /internal/task
 			case r := <-results:
-				logger.Info("New result: ", r)
+				logger.Info("new result: ", r)
 				body, err := json.Marshal(r)
 				if err != nil {
 					logger.Error("failed to marshall payload:", r)
@@ -117,9 +116,10 @@ func Run() {
 			}
 		}
 	}()
+
+	time.Sleep(time.Duration(20) * time.Minute)
 }
 
 func main() {
 	Run()
-	time.Sleep(time.Duration(20) * time.Minute)
 }
