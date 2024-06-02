@@ -9,13 +9,13 @@ import (
 const (
 	defaultServerPort = "8081"
 
-	defaultCountGoroutines = "5"
+	defaultCountGoroutines = "3"
 
-	defaultTimeAdditionMs        = "300"
-	defaultTimeSubtractionMs     = "300"
-	defaultTimeMultiplicationsMs = "300"
-	defaultTimeDivisionsMs       = "300"
-	defaultTimeExponentiationMs  = "300"
+	defaultTimeAdditionMs        = "2000"
+	defaultTimeSubtractionMs     = "2000"
+	defaultTimeMultiplicationsMs = "2000"
+	defaultTimeDivisionsMs       = "2000"
+	defaultTimeExponentiationMs  = "2000"
 )
 
 /*
