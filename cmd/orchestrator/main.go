@@ -24,7 +24,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	repo := &handle.Repo{}
+	repo := handle.NewRepo()
 
 	mux.HandleFunc("/calculate", repo.AddExpressionHandleFunc)
 	mux.HandleFunc("/expressions", repo.GetExpressionsHandleFunc)
