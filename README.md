@@ -4,6 +4,24 @@
 
 1) Склонировать репозиторий используя команду: git clone https://github.com/ekateri9a/arithmetic-expression-calculator
 2) Установить версию go 1.21.10 или выше
+3) Наличие утилиты make для файлов Makefiles
+
+**Важно** запустить оркестратор до агента!!!
+
+### Запуск проекта с помощью файла Makefiles из консоли Windows:
+1) Перейти в папку arithmetic-expression-calculator
+2) В терминале выполнить запуск _**оркестратора**_ с помощью команды:
+   * make run-orchestrator-windows
+3) Открыть новый терминал и выполнить запуск _**агента**_ с помощью команды:
+   * make run-agent-windows
+
+### Запуск проекта с помощью файла Makefiles из консоли Linux:
+1) Перейти в папку arithmetic-expression-calculator
+2) В терминале выполнить запуск _**оркестратора**_ с помощью команды:
+   * make run-orchestrator-linux
+3) Открыть новый терминал и выполнить запуск _**агента**_ с помощью команды:
+   * make run-agent-linux
+
 
 ### Запуск проекта из консоли:
 1) Перейти в папку arithmetic-expression-calculator\cmd\orchestrator и выполнить запуск _**оркестратора**_ с помощью команды: 
