@@ -5,6 +5,7 @@ import (
 	"arithmetic-expression-calculator/internal/logger"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -115,8 +116,9 @@ func CheckExpression(exp string) ([]op.Chunk, error) {
 		return nil, errors.New("empty expression")
 	}
 
-	logger.Info("expression", exp, ", CheckExpression (): ", CheckBalance(exp))
-	if !CheckBalance(exp) {
+	parenthesis := CheckBalance(exp)
+	logger.Info("expression", exp, ", check parenthesis - (): ", parenthesis)
+	if !parenthesis {
 		logger.Error("expression", exp, "invalid")
 		return nil, errors.New("invalid expression")
 	}
@@ -187,14 +189,26 @@ func CheckExpression(exp string) ([]op.Chunk, error) {
 		})
 	}
 
+	if len(result) < 3 {
+		return nil, errors.New("invalid expression - short")
+	}
+
 	for i := 0; i < len(result)-1; i++ {
+		// check expression hasn't operation after open ( and operation before )
 		if result[i].OpFlag == result[i+1].OpFlag && !(result[i+1].Val == "(" || result[i].Val == ")") {
 			return nil, errors.New("invalid expression repeated")
 		}
-	}
 
-	if len(result) < 3 {
-		return nil, errors.New("invalid expression - short")
+		// check div zero
+		if result[i].Val == "/" && result[i+1].OpFlag == op.Num {
+			f, err := strconv.ParseFloat(result[i+1].Val, 64)
+			if err != nil {
+				return nil, errors.New("invalid expression repeated")
+			}
+			if f == 0.0 {
+				return nil, errors.New("invalid expression div zero")
+			}
+		}
 	}
 
 	return result, nil
