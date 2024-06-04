@@ -98,6 +98,8 @@ func (repo *Repo) GetTaskAtWork() (op.Task, bool) {
 }
 
 func (repo *Repo) UpdateExpressionChunks(taskId int, indexReplaceChunk int, calcResultResult float64) bool {
+	repo.mx.Lock()
+	//defer repo.mx.Unlock()
 	for i := 0; i < len(repo.RepoE); i++ {
 		if repo.RepoE[i].Id == taskId {
 			logger.Info("Postfix before replace: ", repo.RepoE[i].ExpressionChunks)
@@ -119,28 +121,53 @@ func (repo *Repo) UpdateExpressionChunks(taskId int, indexReplaceChunk int, calc
 			// Repeat - add new tasks
 			if len(repo.RepoE[i].ExpressionChunks) > 1 {
 				// Find tasks
-				countNewTasks := 0
-				for ii := 2; ii < len(repo.RepoE[i].ExpressionChunks); ii++ {
-					if repo.RepoE[i].ExpressionChunks[ii].OpFlag == op.Operation && repo.RepoE[i].ExpressionChunks[ii-1].OpFlag == op.Num && repo.RepoE[i].ExpressionChunks[ii-2].OpFlag == op.Num {
-						countNewTasks++
-						arg1, _ := strconv.ParseFloat(repo.RepoE[i].ExpressionChunks[ii-2].Val, 64)
-						arg2, _ := strconv.ParseFloat(repo.RepoE[i].ExpressionChunks[ii-1].Val, 64)
-						repo.Tasks = append(repo.Tasks, op.Task{
-							Id:            strconv.Itoa(taskId) + "-" + strconv.Itoa(ii-2),
-							Arg1:          arg1,
-							Arg2:          arg2,
-							Operation:     repo.RepoE[i].ExpressionChunks[ii].Val,
-							OperationTime: 0,
-						})
-					}
-				}
-				logger.Info("Added", countNewTasks, "new tasks")
-			}
+				chunksPostfix := repo.RepoE[i].ExpressionChunks
+				repo.mx.Unlock()
+				repo.FindTask(taskId, chunksPostfix)
 
+				//countNewTasks := 0
+				//for ii := 2; ii < len(repo.RepoE[i].ExpressionChunks); ii++ {
+				//	if repo.RepoE[i].ExpressionChunks[ii].OpFlag == op.Operation && repo.RepoE[i].ExpressionChunks[ii-1].OpFlag == op.Num && repo.RepoE[i].ExpressionChunks[ii-2].OpFlag == op.Num {
+				//		countNewTasks++
+				//		arg1, _ := strconv.ParseFloat(repo.RepoE[i].ExpressionChunks[ii-2].Val, 64)
+				//		arg2, _ := strconv.ParseFloat(repo.RepoE[i].ExpressionChunks[ii-1].Val, 64)
+				//		repo.Tasks = append(repo.Tasks, op.Task{
+				//			Id:            strconv.Itoa(taskId) + "-" + strconv.Itoa(ii-2),
+				//			Arg1:          arg1,
+				//			Arg2:          arg2,
+				//			Operation:     repo.RepoE[i].ExpressionChunks[ii].Val,
+				//			OperationTime: 0,
+				//		})
+				//	}
+				//}
+				//logger.Info("Added", countNewTasks, "new tasks")
+			} else {
+				repo.mx.Unlock()
+			}
 			return true
 		}
 	}
+	repo.mx.Unlock()
 	return false
+}
+
+func (repo *Repo) FindTask(expressionId int, chunksPostfix []op.Chunk) {
+	countNewTasks := 0
+	for i := 2; i < len(chunksPostfix); i++ {
+		if chunksPostfix[i].OpFlag == op.Operation && chunksPostfix[i-1].OpFlag == op.Num && chunksPostfix[i-2].OpFlag == op.Num {
+			countNewTasks++
+			arg1, _ := strconv.ParseFloat(chunksPostfix[i-2].Val, 64)
+			arg2, _ := strconv.ParseFloat(chunksPostfix[i-1].Val, 64)
+			repo.SaveTask(op.Task{
+				Id:            strconv.Itoa(expressionId) + "-" + strconv.Itoa(i-2),
+				Arg1:          arg1,
+				Arg2:          arg2,
+				Operation:     chunksPostfix[i].Val,
+				OperationTime: 0,
+			})
+		}
+	}
+	logger.Info("Added", countNewTasks, "new tasks")
 }
 
 func (repo *Repo) AddExpressionHandleFunc(w http.ResponseWriter, r *http.Request) {
@@ -179,22 +206,7 @@ func (repo *Repo) AddExpressionHandleFunc(w http.ResponseWriter, r *http.Request
 	})
 
 	// Find tasks in expression -----------------------------------------------
-	countNewTasks := 0
-	for i := 2; i < len(chunksPostfix); i++ {
-		if chunksPostfix[i].OpFlag == op.Operation && chunksPostfix[i-1].OpFlag == op.Num && chunksPostfix[i-2].OpFlag == op.Num {
-			countNewTasks++
-			arg1, _ := strconv.ParseFloat(chunksPostfix[i-2].Val, 64)
-			arg2, _ := strconv.ParseFloat(chunksPostfix[i-1].Val, 64)
-			repo.SaveTask(op.Task{
-				Id:            strconv.Itoa(expressionId) + "-" + strconv.Itoa(i-2),
-				Arg1:          arg1,
-				Arg2:          arg2,
-				Operation:     chunksPostfix[i].Val,
-				OperationTime: 0,
-			})
-		}
-	}
-	logger.Info("Added", countNewTasks, "new tasks")
+	repo.FindTask(expressionId, chunksPostfix)
 
 	// Response --------------------------------------------------------------
 	payload := AddExpressionResponse{Id: expressionId}
