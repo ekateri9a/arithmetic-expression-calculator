@@ -75,7 +75,7 @@ func (repo *Repo) DeleteTask(taskId string) bool {
 			} else if i == len(repo.Tasks)-1 {
 				repo.Tasks = repo.Tasks[:i]
 			} else {
-				repo.Tasks = append(repo.Tasks[:i], repo.Tasks[:i+1]...)
+				repo.Tasks = append(repo.Tasks[:i], repo.Tasks[i+1:]...)
 			}
 			return true
 		}
@@ -90,10 +90,12 @@ func (repo *Repo) GetTaskAtWork() (op.Task, bool) {
 		for i := 0; i < len(repo.Tasks); i++ {
 			if !repo.Tasks[i].AtWork {
 				repo.Tasks[i].AtWork = true
+				logger.Info("GetTaskAtWork i", repo.Tasks[i].Id, ",", repo.Tasks)
 				return repo.Tasks[i], true
 			}
 		}
 	}
+	logger.Info("GetTaskAtWork false ", repo.Tasks)
 	return op.Task{}, false
 }
 
@@ -167,7 +169,8 @@ func (repo *Repo) FindTask(expressionId int, chunksPostfix []op.Chunk) {
 			})
 		}
 	}
-	logger.Info("Added", countNewTasks, "new tasks")
+	logger.Info("Added", countNewTasks, "new tasks for ", expressionId)
+	logger.Info("All tasks", repo.Tasks)
 }
 
 func (repo *Repo) AddExpressionHandleFunc(w http.ResponseWriter, r *http.Request) {
