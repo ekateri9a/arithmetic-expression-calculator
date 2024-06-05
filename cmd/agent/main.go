@@ -92,6 +92,7 @@ func Run() {
 	}
 
 	countGoroutines := conf.CountGoroutines
+	logger.Info("count goroutines: ", countGoroutines)
 
 	cl := make(chan bool)
 	tasks := make(chan entities.Task)
@@ -103,50 +104,57 @@ func Run() {
 
 	client := &http.Client{}
 	serverPort := conf.ServerPort
+	countRepeatConnection := 10
+	timeToWaitConnectionSeconds := 5
 
-	go func() {
-		for {
-			select {
-			// GET /internal/task
-			case <-time.After(1 * time.Second):
-				resp, err := client.Get("http://localhost:" + strconv.Itoa(serverPort) + "/internal/task")
-				if err != nil {
-					logger.Error(err, resp.StatusCode)
-				}
+	for {
+		select {
+		// GET /internal/task
+		case <-time.After(1 * time.Second):
 
-				if resp.StatusCode == 200 {
-					task := new(entities.Task)
-					utils.DecodeRespondBody(resp.Body, task)
-					defer resp.Body.Close()
-					if err != nil {
-						logger.Error("failed to decode body", err)
-					} else {
-						go func() {
-							tasks <- *task
-						}()
-					}
-				} else {
-					logger.Info("StatusCode: ", resp.StatusCode)
+			resp, err := client.Get("http://localhost:" + strconv.Itoa(serverPort) + "/internal/task")
+			if err != nil {
+				countRepeatConnection--
+				logger.Info("connection error: ", err)
+				if countRepeatConnection == 0 {
+					return
 				}
-			// POST /internal/task
-			case r := <-results:
-				logger.Info("new result: ", r.String())
-				body, err := json.Marshal(r)
+				logger.Info("sleep", timeToWaitConnectionSeconds, "seconds before repeat connection")
+				logger.Info("you have", countRepeatConnection, "attempt to repeat connection")
+				time.Sleep(time.Duration(timeToWaitConnectionSeconds) * time.Second)
+				continue
+			}
+
+			if resp.StatusCode == 200 {
+				task := new(entities.Task)
+				utils.DecodeRespondBody(resp.Body, task)
+				defer resp.Body.Close()
 				if err != nil {
-					logger.Error("failed to marshall payload:", r.String())
+					logger.Error("failed to decode body", err)
 				} else {
-					resp, err := client.Post("http://localhost:"+strconv.Itoa(serverPort)+"/internal/task", "application/json", bytes.NewBuffer(body))
-					if err != nil {
-						logger.Error(err)
-					}
-					resp.Body.Close()
-					logger.Info("StatusCode: ", resp.StatusCode)
+					go func() {
+						tasks <- *task
+					}()
 				}
+			} else {
+				logger.Info("StatusCode: ", resp.StatusCode)
+			}
+		// POST /internal/task
+		case r := <-results:
+			logger.Info("new result: ", r.String())
+			body, err := json.Marshal(r)
+			if err != nil {
+				logger.Error("failed to marshall payload:", r.String())
+			} else {
+				resp, err := client.Post("http://localhost:"+strconv.Itoa(serverPort)+"/internal/task", "application/json", bytes.NewBuffer(body))
+				if err != nil {
+					logger.Error(err)
+				}
+				resp.Body.Close()
+				logger.Info("StatusCode: ", resp.StatusCode)
 			}
 		}
-	}()
-
-	time.Sleep(time.Duration(20) * time.Minute)
+	}
 }
 
 func main() {
