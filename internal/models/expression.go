@@ -40,6 +40,28 @@ func InsertExpression(ctx context.Context, db *sql.DB, expression *Expression) (
 	return id, nil
 }
 
+func SelectExpressionsCalculate(ctx context.Context, db *sql.DB) ([]Expression, error) {
+	var expressions []Expression
+	var q = "SELECT * FROM expressions where status = $1"
+
+	rows, err := db.QueryContext(ctx, q, "calculate")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		e := Expression{}
+		err := rows.Scan(&e.ID, &e.Expression, &e.Status, &e.Result, &e.UserID)
+		if err != nil {
+			return nil, err
+		}
+		expressions = append(expressions, e)
+	}
+
+	return expressions, nil
+}
+
 func SelectExpressionsByUserID(ctx context.Context, db *sql.DB, userID int64) ([]Expression, error) {
 	var expressions []Expression
 	var q = "SELECT * FROM expressions where user_id = $1"
