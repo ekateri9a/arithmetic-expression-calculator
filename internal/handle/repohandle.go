@@ -39,10 +39,33 @@ type Repo struct {
 }
 
 func NewRepo(db *sql.DB) *Repo {
-	return &Repo{
-		DB: db,
-		mx: &sync.Mutex{},
+	ctx := context.TODO()
+	expressions, _ := models.SelectExpressionsCalculate(ctx, db)
+	expressionsRepo := make([]Expression, 0, len(expressions))
+	repo := Repo{
+		DB:    db,
+		mx:    &sync.Mutex{},
+		RepoE: expressionsRepo,
 	}
+
+	for _, expression := range expressions {
+		chunks, _ := utils.CheckExpression(expression.Expression) //todo
+		// InfixToPostfix ---------------------------------------------------------
+		chunksPostfix := utils.InfixToPostfix(chunks)
+		logger.Info("Postfix:", chunksPostfix)
+
+		repo.RepoE = append(repo.RepoE, Expression{
+			Id:               int(expression.ID),
+			Status:           expression.Status,
+			Result:           0,
+			ExpressionChunks: chunksPostfix,
+		})
+
+		// Find tasks in expression -----------------------------------------------
+		repo.FindTask(int(expression.ID), chunksPostfix) // todo int
+	}
+
+	return &repo
 }
 
 func (repo *Repo) GetAllExpressions() []Expression {
@@ -54,7 +77,6 @@ func (repo *Repo) GetAllExpressions() []Expression {
 func (repo *Repo) SaveExpression(expression Expression) {
 	repo.mx.Lock()
 	defer repo.mx.Unlock()
-	//expression.Id = len(repo.RepoE) + 1
 	repo.RepoE = append(repo.RepoE, expression)
 }
 
@@ -128,6 +150,9 @@ func (repo *Repo) UpdateExpressionChunks(taskId int, indexReplaceChunk int, calc
 				if err != nil {
 					logger.Error(err)
 				}
+
+				ctx := context.TODO()
+				models.UpdateExpressionFinish(ctx, repo.DB, int64(repo.RepoE[i].Id), repo.RepoE[i].Result)
 			}
 			// Repeat - add new tasks
 			if len(repo.RepoE[i].ExpressionChunks) > 1 {
