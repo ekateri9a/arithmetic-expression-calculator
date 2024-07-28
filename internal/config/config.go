@@ -16,6 +16,8 @@ const (
 	defaultTimeMultiplicationsMs = "2000"
 	defaultTimeDivisionsMs       = "2000"
 	defaultTimeExponentiationMs  = "2000"
+
+	hmacSampleSecret = "super_secret_signature"
 )
 
 /*
@@ -25,6 +27,7 @@ TIME_SUBTRACTION_MS - время выполнения операции вычи�
 TIME_MULTIPLICATIONS_MS - время выполнения операции умножения в милисекундах
 TIME_DIVISIONS_MS - время выполнения операции деления в милисекундах
 TIME_EXPONENTIATION_MS - время выполнения операции возведения в степень в милисекундах
+SECRET_KEY - для JWT
 */
 
 type Config struct {
@@ -35,6 +38,7 @@ type Config struct {
 	TimeMultiplicationsMs int
 	TimeDivisionsMs       int
 	TimeExponentiationMs  int
+	SecretKey             string
 }
 
 func LoadFromEnv() (*Config, error) {
@@ -51,6 +55,13 @@ func LoadFromEnv() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s as int: %w", os.Getenv("SERVER_PORT"), err)
 	}
+
+	//SECRET_KEY
+	secterKey := os.Getenv("SECRET_KEY")
+	if secterKey == "" {
+		secterKey = hmacSampleSecret
+	}
+	conf.SecretKey = secterKey
 
 	//COMPUTING_POWER
 	countGoroutines := os.Getenv("COMPUTING_POWER")

@@ -1,15 +1,21 @@
 package handle
 
 import (
+	"arithmetic-expression-calculator/internal/config"
 	op "arithmetic-expression-calculator/internal/entities"
 	"arithmetic-expression-calculator/internal/logger"
+	"arithmetic-expression-calculator/internal/models"
 	"arithmetic-expression-calculator/internal/utils"
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type AddExpressionResponse struct {
@@ -24,13 +30,17 @@ type Expression struct {
 }
 
 type Repo struct {
-	RepoE []Expression `json:"expressions"`
-	Tasks []op.Task    `json:"-"`
-	mx    *sync.Mutex  `json:"-"`
+	DB       *sql.DB
+	RepoE    []Expression  `json:"expressions"` // todo
+	Tasks    []op.Task     `json:"-"`
+	mx       *sync.Mutex   `json:"-"`
+	conf     config.Config `json:"-"`
+	UserName string        `json:"-"`
 }
 
-func NewRepo() *Repo {
+func NewRepo(db *sql.DB) *Repo {
 	return &Repo{
+		DB: db,
 		mx: &sync.Mutex{},
 	}
 }
@@ -41,12 +51,11 @@ func (repo *Repo) GetAllExpressions() []Expression {
 	return repo.RepoE
 }
 
-func (repo *Repo) SaveExpression(expression Expression) int {
+func (repo *Repo) SaveExpression(expression Expression) {
 	repo.mx.Lock()
 	defer repo.mx.Unlock()
-	expression.Id = len(repo.RepoE) + 1
+	//expression.Id = len(repo.RepoE) + 1
 	repo.RepoE = append(repo.RepoE, expression)
-	return expression.Id
 }
 
 func (repo *Repo) GetExpression(id int) (Expression, error) {
@@ -201,18 +210,36 @@ func (repo *Repo) AddExpressionHandleFunc(w http.ResponseWriter, r *http.Request
 	chunksPostfix := utils.InfixToPostfix(chunks)
 	logger.Info("Postfix:", chunksPostfix)
 
+	// Add expression to db -------------------------------------------------
+	ctx := context.TODO()
+	logger.Info("Username ", repo.UserName)
+	user, _ := models.SelectUserByLogin(ctx, repo.DB, repo.UserName)
+	if err != nil {
+		logger.Error("user not found")
+	}
+
+	expressionId, err := models.InsertExpression(ctx, repo.DB, &models.Expression{
+		Expression: expression.Val,
+		UserID:     user.ID,
+	})
+
+	if err != nil {
+		logger.Error("can not add expression")
+	}
+
 	// Add expression to repo -------------------------------------------------
-	expressionId := repo.SaveExpression(Expression{
+	repo.SaveExpression(Expression{
+		Id:               int(expressionId), // todo int
 		Status:           "Calculate",
 		Result:           0,
 		ExpressionChunks: chunksPostfix,
 	})
 
 	// Find tasks in expression -----------------------------------------------
-	repo.FindTask(expressionId, chunksPostfix)
+	repo.FindTask(int(expressionId), chunksPostfix) // todo int
 
 	// Response --------------------------------------------------------------
-	payload := AddExpressionResponse{Id: expressionId}
+	payload := AddExpressionResponse{Id: int(expressionId)} // todo int
 
 	respondErr := utils.SuccessRespondWith201(w, payload)
 	if respondErr != nil {
@@ -231,13 +258,28 @@ func (repo *Repo) GetExpressionsHandleFunc(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		expression, err := repo.GetExpression(id)
+		// db
+		ctx := context.TODO()
+		logger.Info("Username expression", repo.UserName)
+		user, err := models.SelectUserByLogin(ctx, repo.DB, repo.UserName)
+		if err != nil {
+			logger.Fatal(err)
+			utils.RespondWith500(w) // todo
+			return
+		}
+		expression, err := models.SelectExpressionByUserID(ctx, repo.DB, user.ID, int64(id))
 		if err != nil {
 			utils.RespondWith404(w)
 			return
 		}
 
-		payload := map[string]Expression{"expression": expression}
+		//expression, err := repo.GetExpression(id)
+		//if err != nil {
+		//	utils.RespondWith404(w)
+		//	return
+		//}
+
+		payload := map[string]models.Expression{"expression": expression}
 
 		respondErr := utils.SuccessRespondWith200(w, payload)
 		if respondErr != nil {
@@ -246,7 +288,23 @@ func (repo *Repo) GetExpressionsHandleFunc(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	payload := repo
+	// db
+	ctx := context.TODO()
+	logger.Info("Username expressions", repo.UserName)
+	user, err := models.SelectUserByLogin(ctx, repo.DB, repo.UserName)
+	if err != nil {
+		logger.Info(err)
+		utils.RespondWith500(w) // todo
+		return
+	}
+	expressions, err := models.SelectExpressionsByUserID(ctx, repo.DB, user.ID)
+	if err != nil {
+		utils.RespondWith404(w)
+		return
+	}
+	//------
+
+	payload := map[string][]models.Expression{"expressions": expressions}
 	respondErr := utils.SuccessRespondWith200(w, payload)
 	if respondErr != nil {
 		logger.Error(respondErr)
@@ -311,4 +369,119 @@ func (repo *Repo) TaskHandleFunc(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWith404(w)
 		return
 	}
+}
+
+func (repo *Repo) AddRegistration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.RespondWith400(w, "http method must be POST")
+		return
+	}
+
+	user := new(op.User)
+	err := utils.DecodeBody(w, r, user)
+	if err != nil {
+		logger.Error("failed to decode body", err)
+		if err = utils.RespondWith400(w, "failed to decode body"); err != nil {
+			logger.Error(err)
+		}
+		return
+	}
+	defer r.Body.Close()
+
+	// todo check password and login not empty
+
+	// todo add in db
+	ctx := context.TODO()
+	id, err := models.InsertUser(ctx, repo.DB, &models.User{Login: user.Login, Password: user.Password})
+	if err != nil {
+		utils.RespondWith500(w) // todo
+		return
+	}
+	logger.Info("New user with id:", id, " - ", user)
+
+	utils.Respond200(w)
+	return
+}
+
+func (repo *Repo) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.RespondWith400(w, "http method must be POST")
+		return
+	}
+
+	user := new(op.User)
+	err := utils.DecodeBody(w, r, user)
+	if err != nil {
+		logger.Error("failed to decode body", err)
+		if err = utils.RespondWith400(w, "failed to decode body"); err != nil {
+			logger.Error(err)
+		}
+		return
+	}
+	defer r.Body.Close()
+
+	ctx := context.TODO()
+	dbUser, err := models.SelectUserByLogin(ctx, repo.DB, user.Login)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "wrong login")
+		return
+	}
+	if dbUser.Password != user.Password {
+		utils.RespondWithError(w, http.StatusUnauthorized, "wrong password")
+		return
+	}
+
+	// New JWT
+	now := time.Now()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"name": user.Login, // todo
+		"nbf":  now.Unix(),
+		"exp":  now.Add(24 * time.Hour).Unix(),
+		"iat":  now.Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(repo.conf.SecretKey))
+	if err != nil {
+		logger.Fatal("JWT token fail")
+		utils.RespondWith500(w)
+	}
+	logger.Info("Token: ", tokenString)
+
+	// add JWT
+	payload := map[string]string{"token": tokenString}
+	respondErr := utils.SuccessRespondWith200(w, payload)
+	if respondErr != nil {
+		logger.Error(respondErr)
+	}
+	return
+}
+
+func (repo *Repo) AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := r.Header.Get("AccessToken")
+
+		logger.Info("Token: ", tokenString)
+
+		tokenFromString, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				panic(fmt.Errorf("unexpected signing method: %v", token.Header["alg"]))
+			}
+
+			return []byte(repo.conf.SecretKey), nil
+		})
+
+		if err != nil {
+			utils.RespondWithError(w, http.StatusUnauthorized, "bad token, repeat auth")
+			return
+		}
+
+		if claims, ok := tokenFromString.Claims.(jwt.MapClaims); ok {
+			fmt.Println("user name: ", claims["name"])
+			repo.UserName = claims["name"].(string)
+		} else {
+			utils.RespondWithError(w, http.StatusUnauthorized, "bad token, repeat auth")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

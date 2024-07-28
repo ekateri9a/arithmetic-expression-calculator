@@ -4,7 +4,8 @@
 
 1) Склонировать репозиторий используя команду: git clone https://github.com/ekateri9a/arithmetic-expression-calculator
 2) Установить версию go 1.21.10 или выше
-3) Наличие утилиты make для файлов Makefiles
+3) GCC для SQlite3
+4) Наличие утилиты make для файлов Makefiles
 
 **Важно** запустить оркестратор до агента!!!
 
@@ -40,6 +41,76 @@ Back-end часть состоит из 2 элементов:
 
 - Вычислитель, который может получить от "оркестратора" задачу, выполнить его и вернуть серверу результат. Далее будем называть его "агентом".
 
+Весь реализованный функционал работает в контексте конкретного пользователя.
+
+Выражения хранятся в SQLite. Система может переживать перезагрузку.
+
+## 0. Регистрация и логирование
+
+## - Регистрация
+
+* Пример запроса для Windows
+```
+curl --location 'http://localhost:8081/register' \
+--header 'Content-Type: application/json' \
+--data '{
+    "login": "bob",
+    "password": "q1w2e3"
+}'
+```
+
+* Пример запроса для Linux
+```
+wget --no-check-certificate --quiet \
+  --method POST \
+  --timeout=0 \
+  --header 'Content-Type: application/json' \
+  --body-data '{
+    "login": "bob",
+    "password": "q1w2e3"
+}' \
+   'http://localhost:8081/register'
+```
+
+В ответ получаем код ответа 200+OK(в случае успеха). В противном случае - ошибка
+
+## - Логирование, добавляем вход
+
+* Пример запроса для Windows
+```
+curl --location 'http://localhost:8081/login' \
+--header 'Content-Type: application/json' \
+--data '{
+    "login": "bob",
+    "password": "q1w2e3"
+}'
+```
+
+* Пример запроса для Linux
+```
+wget --no-check-certificate --quiet \
+  --method POST \
+  --timeout=0 \
+  --header 'Content-Type: application/json' \
+  --body-data '{
+    "login": "bob",
+    "password": "q1w2e3"
+}' \
+   'http://localhost:8081/login'
+```
+
+В ответ получаем код ответа 200+OK и JWT токен для последующей авторизации. 
+
+Тело ответа
+
+```
+{
+"token": <уникалиный token>
+}
+```
+
+Полученный токен будет использоваться в заголовке AccessToken для авторизации при обращении к оркестратору от пользователя.
+
 ## 1. Оркестратор
    Сервер, который имеет следующие endpoint-ы:
 
@@ -50,6 +121,7 @@ Back-end часть состоит из 2 элементов:
 ```
 curl --location 'http://localhost:8081/calculate' \
 --header 'Content-Type: application/json' \
+--header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' \
 --data '{
     "expression": "1+2*(3^4-5) ^(6 - 7 + 3)-8.9"
 }'
@@ -60,6 +132,7 @@ curl --location 'http://localhost:8081/calculate' \
 wget --no-check-certificate --quiet \
   --method POST \
   --timeout=0 \
+  --header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' \
   --header 'Content-Type: application/json' \
   --body-data '{
     "expression": "1+2*(3^4-5) ^(6 - 7 + 3)-8.9"
@@ -92,7 +165,8 @@ Cтрока с выражением не поддерживает числа с 
 
 * Пример запроса для Windows
 ```
-curl --location 'http://localhost:8081/expressions'
+curl --location 'http://localhost:8081/expressions' \
+--header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' 
 ```
 
 * Пример запроса для Linux
@@ -134,7 +208,8 @@ wget --no-check-certificate --quiet \
 
 * Пример запроса для Windows
 ```
-curl --location 'http://localhost:8081/expressions/:1'
+curl --location 'http://localhost:8081/expressions/:1' \
+--header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' 
 ```
 
 * Пример запроса для Linux
@@ -142,6 +217,7 @@ curl --location 'http://localhost:8081/expressions/:1'
 wget --no-check-certificate --quiet \
   --method GET \
   --timeout=0 \
+  --header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' \
   --header '' \
    'http://localhost:8081/expressions/:1'
 ```
@@ -178,6 +254,7 @@ curl --location 'http://localhost:8081/internal/task'
 wget --no-check-certificate --quiet \
   --method GET \
   --timeout=0 \
+  --header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' \
   --header '' \
    'http://localhost:8081/internal/task'
 ```
@@ -242,6 +319,8 @@ wget --no-check-certificate --quiet \
 * TIME_MULTIPLICATIONS_MS - время выполнения операции умножения в милисекундах (по умолчанию 2000)
 * TIME_DIVISIONS_MS - время выполнения операции деления в милисекундах (по умолчанию 2000)
 * TIME_EXPONENTIATION_MS - время выполнения операции возведения в степень в милисекундах (по умолчанию 2000)
+
+Для шифрования JWT задается строка переменной среды SECRET_KEY (есть значение по умолчанию).
 
 Порт для сервера задается переменной среды SERVER_PORT (по умолчанию 8081)
 
