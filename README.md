@@ -254,7 +254,6 @@ curl --location 'http://localhost:8081/internal/task'
 wget --no-check-certificate --quiet \
   --method GET \
   --timeout=0 \
-  --header 'AccessToken: eyJkpXVCJ..9.eyJleHAiOjE3E2MX..0.0hW..HP-7yE' \
   --header '' \
    'http://localhost:8081/internal/task'
 ```
