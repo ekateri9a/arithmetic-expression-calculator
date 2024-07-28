@@ -52,7 +52,7 @@ func main() {
 	mux.Handle("/calculate", repo.AuthMiddleware(http.HandlerFunc(repo.AddExpressionHandleFunc)))
 	mux.Handle("/expressions", repo.AuthMiddleware(http.HandlerFunc(repo.GetExpressionsHandleFunc)))
 	mux.Handle("/expressions/", repo.AuthMiddleware(http.HandlerFunc(repo.GetExpressionsHandleFunc)))
-	mux.Handle("/internal/task", repo.AuthMiddleware(http.HandlerFunc(repo.TaskHandleFunc)))
+	mux.HandleFunc("/internal/task", repo.TaskHandleFunc)
 
 	mux.HandleFunc("/register", repo.AddRegistration)
 	mux.HandleFunc("/login", repo.Login)
