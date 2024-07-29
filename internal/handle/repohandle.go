@@ -413,13 +413,20 @@ func (repo *Repo) AddRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// todo check password and login not empty
+	if user.Login == "" {
+		utils.RespondWith400(w, "empty login")
+		return
+	}
+	if user.Password == "" {
+		utils.RespondWith400(w, "empty password")
+		return
+	}
 
-	// todo add in db
 	ctx := context.TODO()
 	id, err := models.InsertUser(ctx, repo.DB, &models.User{Login: user.Login, Password: user.Password})
 	if err != nil {
-		utils.RespondWith500(w) // todo
+		logger.Info(err)
+		utils.RespondWith400(w, "the user with your login already exists")
 		return
 	}
 	logger.Info("New user with id:", id, " - ", user)

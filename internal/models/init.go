@@ -10,7 +10,7 @@ func CreateTables(ctx context.Context, db *sql.DB) error {
 		usersTable = `
 	CREATE TABLE IF NOT EXISTS users(
 		id INTEGER PRIMARY KEY AUTOINCREMENT, 
-		login TEXT NOT NULL,
+		login TEXT NOT NULL UNIQUE,
 		password TEXT NOT NULL
 	);`
 
